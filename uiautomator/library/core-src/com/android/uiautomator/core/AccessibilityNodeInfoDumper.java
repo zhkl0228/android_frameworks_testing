@@ -16,8 +16,13 @@
 
 package com.android.uiautomator.core;
 
+import android.app.ActivityManager;
+import android.app.ActivityManagerNative;
+import android.content.ComponentName;
+
 import android.os.Environment;
 import android.os.SystemClock;
+import android.os.RemoteException;
 import android.util.Log;
 import android.util.Xml;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -28,6 +33,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.List;
 
 /**
  *
@@ -63,6 +69,13 @@ public class AccessibilityNodeInfoDumper {
                 rotation, width, height);
     }
 
+    private static String getTopActivity() throws RemoteException {
+        List<ActivityManager.RunningTaskInfo> runningTaskInfos = ActivityManagerNative.getDefault().getTasks(1, 0, null);
+        ActivityManager.RunningTaskInfo runningTaskInfo = runningTaskInfos == null || runningTaskInfos.isEmpty() ? null : runningTaskInfos.get(0);
+        ComponentName cn = runningTaskInfo == null ? null : runningTaskInfo.topActivity;
+        return cn == null ? null : cn.getClassName();
+    }
+
     /**
      * Using {@link AccessibilityNodeInfo} this method will walk the layout hierarchy
      * and generates an xml dump to the location specified by <code>dumpFile</code>
@@ -86,6 +99,13 @@ public class AccessibilityNodeInfoDumper {
             serializer.startDocument("UTF-8", true);
             serializer.startTag("", "hierarchy");
             serializer.attribute("", "rotation", Integer.toString(rotation));
+            String topActivity = null;
+            try {
+                topActivity = getTopActivity();
+            } catch(RemoteException ignored) {}
+            if(topActivity != null) {
+                serializer.attribute("", "windowName", topActivity);
+            }
             dumpNodeRec(root, serializer, 0, width, height);
             serializer.endTag("", "hierarchy");
             serializer.endDocument();
