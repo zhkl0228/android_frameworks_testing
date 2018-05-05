@@ -26,6 +26,7 @@ import android.os.RemoteException;
 import android.util.Log;
 import android.util.Xml;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.graphics.Rect;
 
 import org.xmlpull.v1.XmlSerializer;
 
@@ -34,6 +35,9 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Objects;
 
 /**
  *
@@ -106,7 +110,7 @@ public class AccessibilityNodeInfoDumper {
             if(topActivity != null) {
                 serializer.attribute("", "windowName", topActivity);
             }
-            dumpNodeRec(root, serializer, 0, width, height);
+            dumpNodeRec(root, serializer, 0, width, height, new HashSet<Integer>());
             serializer.endTag("", "hierarchy");
             serializer.endDocument();
             writer.write(stringWriter.toString());
@@ -118,8 +122,18 @@ public class AccessibilityNodeInfoDumper {
         Log.w(LOGTAG, "Fetch time: " + (endTime - startTime) + "ms");
     }
 
+    private static int hashNode(AccessibilityNodeInfo nodeInfo) {
+        Rect outBounds = new Rect();
+        nodeInfo.getBoundsInScreen(outBounds);
+        return Objects.hash(nodeInfo, nodeInfo.getClassName(), nodeInfo.getText(), nodeInfo.getContentDescription(), outBounds);
+    }
+
     private static void dumpNodeRec(AccessibilityNodeInfo node, XmlSerializer serializer,int index,
-            int width, int height) throws IOException {
+            int width, int height, Set<Integer> set) throws IOException {
+        if(!set.add(hashNode(node))) {
+            return;
+        }
+
         serializer.startTag("", "node");
         if (!nafExcludedClass(node) && !nafCheck(node))
             serializer.attribute("", "NAF", Boolean.toString(true));
@@ -146,7 +160,7 @@ public class AccessibilityNodeInfoDumper {
             AccessibilityNodeInfo child = node.getChild(i);
             if (child != null) {
                 if (child.isVisibleToUser()) {
-                    dumpNodeRec(child, serializer, i, width, height);
+                    dumpNodeRec(child, serializer, i, width, height, set);
                     child.recycle();
                 } else {
                     Log.i(LOGTAG, String.format("Skipping invisible child: %s", child.toString()));
